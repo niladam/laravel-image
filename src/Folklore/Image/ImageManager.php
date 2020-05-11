@@ -1,48 +1,50 @@
-<?php namespace Folklore\Image;
+<?php
+
+namespace Folklore\Image;
 
 use Folklore\Image\Exception\Exception;
 use Folklore\Image\Exception\FileMissingException;
-use Folklore\Image\Exception\ParseException;
 use Folklore\Image\Exception\FormatException;
+use Folklore\Image\Exception\ParseException;
+
+use Illuminate\Support\Arr;
 
 use Illuminate\Support\Manager;
-
-use Imagine\Image\ImageInterface;
 use Imagine\Image\Box;
+use Imagine\Image\ImageInterface;
 use Imagine\Image\Point;
 
 class ImageManager extends Manager
 {
-
     /**
      * Default options
      *
      * @var array
      */
-    protected $defaultOptions = array(
+    protected $defaultOptions = [
         'width' => null,
         'height' => null,
         'quality' => 80,
-        'filters' => array()
-    );
+        'filters' => [],
+    ];
 
     /**
      * All of the custom filters.
      *
      * @var array
      */
-    protected $filters = array();
+    protected $filters = [];
 
     /**
      * Return an URL to process the image
      *
-     * @param  string  $src
-     * @param  int     $width
-     * @param  int     $height
-     * @param  array   $options
+     * @param  string $src
+     * @param  int    $width
+     * @param  int    $height
+     * @param  array  $options
      * @return string
      */
-    public function url($src, $width = null, $height = null, $options = array())
+    public function url($src, $width = null, $height = null, $options = [])
     {
 
         // Don't allow empty strings
@@ -59,10 +61,10 @@ class ImageManager extends Manager
             $width = null;
             $height = null;
         }
-        
+
         $config = $this->app['config'];
-        $url_parameter = isset($options['url_parameter']) ? $options['url_parameter']:$config['image.url_parameter'];
-        $url_parameter_separator = isset($options['url_parameter_separator']) ? $options['url_parameter_separator']:$config['image.url_parameter_separator'];
+        $url_parameter = isset($options['url_parameter']) ? $options['url_parameter'] : $config['image.url_parameter'];
+        $url_parameter_separator = isset($options['url_parameter_separator']) ? $options['url_parameter_separator'] : $config['image.url_parameter_separator'];
         unset($options['url_parameter'],$options['url_parameter_separator']);
 
         //Get size
@@ -80,7 +82,7 @@ class ImageManager extends Manager
         }
 
         // Produce the parameter parts
-        $params = array();
+        $params = [];
 
         //Add size only if present
         if ($width != '_' || $height != '_') {
@@ -109,10 +111,10 @@ class ImageManager extends Manager
 
         // Break the path apart and put back together again
         $parts = pathinfo($src);
-        $host = isset($options['host']) ? $options['host']:$this->app['config']['image.host'];
+        $host = isset($options['host']) ? $options['host'] : $this->app['config']['image.host'];
         $dir = trim($parts['dirname'], '/');
 
-        $path = array();
+        $path = [];
         $path[] = rtrim($host, '/');
 
         if ($prefix = $this->app['config']->get('image.write_path')) {
@@ -123,7 +125,7 @@ class ImageManager extends Manager
             $path[] = $dir;
         }
 
-        $filename = array();
+        $filename = [];
         $filename[] = $parts['filename'].$parameter;
         if (!empty($parts['extension'])) {
             $filename[] = $parts['extension'];
@@ -131,17 +133,16 @@ class ImageManager extends Manager
         $path[] = implode('.', $filename);
 
         return implode('/', $path);
-
     }
 
     /**
      * Make an image and apply options
      *
-     * @param  string    $path The path of the image
-     * @param  array    $options The manipulations to apply on the image
+     * @param  string         $path    The path of the image
+     * @param  array          $options The manipulations to apply on the image
      * @return ImageInterface
      */
-    public function make($path, $options = array())
+    public function make($path, $options = [])
     {
         //Get app config
         $config = $this->app['config'];
@@ -186,13 +187,13 @@ class ImageManager extends Manager
                 $arguments = (array)$filter;
                 array_unshift($arguments, $image);
 
-                $image = call_user_func_array(array($this,'applyCustomFilter'), $arguments);
+                $image = call_user_func_array([$this,'applyCustomFilter'], $arguments);
             }
         }
 
         // Resize only if one or both width and height values are set.
         if ($options['width'] !== null || $options['height'] !== null) {
-            $crop = isset($options['crop']) ? $options['crop']:false;
+            $crop = isset($options['crop']) ? $options['crop'] : false;
 
             $image = $this->thumbnail($image, $options['width'], $options['height'], $crop);
         }
@@ -207,11 +208,9 @@ class ImageManager extends Manager
                 $arguments = (array)$arguments;
                 array_unshift($arguments, $image);
 
-                $image = call_user_func_array(array($this, $method), $arguments);
+                $image = call_user_func_array([$this, $method], $arguments);
             }
         }
-
-
 
         return $image;
     }
@@ -219,49 +218,49 @@ class ImageManager extends Manager
     /**
      * Serve an image from an url
      *
-     * @param  string    $path
-     * @param  array    $config
+     * @param  string                              $path
+     * @param  array                               $config
      * @return Illuminate\Support\Facades\Response
      */
-    public function serve($path, $config = array())
+    public function serve($path, $config = [])
     {
         //Use user supplied quality or the config value
-        $quality = array_get($config, 'quality', $this->app['config']['image.quality']);
+        $quality = Arr::get($config, 'quality', $this->app['config']['image.quality']);
         //if nothing works fallback to the hardcoded value
         $quality = $quality ?: $this->defaultOptions['quality'];
 
         //Merge config with defaults
-        $config = array_merge(array(
+        $config = array_merge([
             'quality' => $quality,
             'custom_filters_only' => $this->app['config']['image.serve_custom_filters_only'],
             'write_image' => $this->app['config']['image.write_image'],
-            'write_path' => $this->app['config']['image.write_path']
-        ), $config);
+            'write_path' => $this->app['config']['image.write_path'],
+        ], $config);
 
         $serve = new ImageServe($this, $config);
-        
+
         return $serve->response($path);
     }
-    
+
     /**
      * Proxy an image
      *
-     * @param  string    $path
-     * @param  array    $config
+     * @param  string                              $path
+     * @param  array                               $config
      * @return Illuminate\Support\Facades\Response
      */
-    public function proxy($path, $config = array())
+    public function proxy($path, $config = [])
     {
         //Merge config with defaults
-        $config = array_merge(array(
+        $config = array_merge([
             'tmp_path' => $this->app['config']['image.proxy_tmp_path'],
             'filesystem' => $this->app['config']['image.proxy_filesystem'],
             'cache' => $this->app['config']['image.proxy_cache'],
             'cache_expiration' => $this->app['config']['image.proxy_cache_expiration'],
             'write_image' => $this->app['config']['image.proxy_write_image'],
-            'cache_filesystem' => $this->app['config']['image.proxy_cache_filesystem']
-        ), $config);
-        
+            'cache_filesystem' => $this->app['config']['image.proxy_cache_filesystem'],
+        ], $config);
+
         $serve = new ImageProxy($this, $config);
         return $serve->response($path);
     }
@@ -269,8 +268,8 @@ class ImageManager extends Manager
     /**
      * Register a custom filter.
      *
-     * @param  string            $name The name of the filter
-     * @param  Closure|string    $filter
+     * @param  string         $name   The name of the filter
+     * @param  Closure|string $filter
      * @return void
      */
     public function filter($name, $filter)
@@ -281,8 +280,10 @@ class ImageManager extends Manager
     /**
      * Create a thumbnail from an image
      *
-     * @param  ImageInterface|string    $image An image instance or the path to an image
-     * @param  int                        $width
+     * @param  ImageInterface|string $image  An image instance or the path to an image
+     * @param  int                   $width
+     * @param  null|mixed            $height
+     * @param  mixed                 $crop
      * @return ImageInterface
      */
     public function thumbnail($image, $width = null, $height = null, $crop = true)
@@ -294,14 +295,14 @@ class ImageManager extends Manager
 
         //Get new size
         $imageSize = $image->getSize();
-        $newWidth = $width === null ? $imageSize->getWidth():$width;
-        $newHeight = $height === null ? $imageSize->getHeight():$height;
+        $newWidth = $width === null ? $imageSize->getWidth() : $width;
+        $newHeight = $height === null ? $imageSize->getHeight() : $height;
         $size = new Box($newWidth, $newHeight);
-        
-        $ratios = array(
+
+        $ratios = [
             $size->getWidth() / $imageSize->getWidth(),
-            $size->getHeight() / $imageSize->getHeight()
-        );
+            $size->getHeight() / $imageSize->getHeight(),
+        ];
 
         $thumbnail = $image->copy();
 
@@ -315,29 +316,28 @@ class ImageManager extends Manager
         }
 
         if ($crop) {
-            
             $imageSize = $thumbnail->getSize()->scale($ratio);
             $thumbnail->resize($imageSize);
-            
+
             $x = max(0, round(($imageSize->getWidth() - $size->getWidth()) / 2));
             $y = max(0, round(($imageSize->getHeight() - $size->getHeight()) / 2));
-            
+
             $cropPositions = $this->getCropPositions($crop);
-            
+
             if ($cropPositions[0] === 'top') {
                 $y = 0;
             } elseif ($cropPositions[0] === 'bottom') {
                 $y = $imageSize->getHeight() - $size->getHeight();
             }
-            
+
             if ($cropPositions[1] === 'left') {
                 $x = 0;
             } elseif ($cropPositions[1] === 'right') {
                 $x = $imageSize->getWidth() - $size->getWidth();
             }
-            
+
             $point = new Point($x, $y);
-            
+
             $thumbnail->crop($point, $size);
         } else {
             if (!$imageSize->contains($size)) {
@@ -356,12 +356,11 @@ class ImageManager extends Manager
     /**
      * Get the format of an image
      *
-     * @param  string    $path The path to an image
+     * @param  string         $path The path to an image
      * @return ImageInterface
      */
     public function format($path)
     {
-
         $format = @exif_imagetype($path);
         switch ($format) {
             case IMAGETYPE_GIF:
@@ -381,7 +380,7 @@ class ImageManager extends Manager
     /**
      * Delete a file and all manipulated files
      *
-     * @param  string    $path The path to an image
+     * @param  string $path The path to an image
      * @return void
      */
     public function delete($path)
@@ -398,7 +397,7 @@ class ImageManager extends Manager
     /**
      * Delete all manipulated files
      *
-     * @param  string    $path The path to an image
+     * @param  string $path The path to an image
      * @return void
      */
     public function deleteManipulated($path)
@@ -416,16 +415,17 @@ class ImageManager extends Manager
      * Get the URL pattern
      *
      * @return string
+     * @param  null|mixed $parameter
+     * @param  null|mixed $pattern
      */
     public function pattern($parameter = null, $pattern = null)
     {
         //Replace the {options} with the options regular expression
         $config = $this->app['config'];
-        $parameter = !isset($parameter) ? $config['image.url_parameter']:$parameter;
+        $parameter = !isset($parameter) ? $config['image.url_parameter'] : $parameter;
         $parameter = preg_replace('/\\\{\s*options\s*\\\}/', '([0-9a-zA-Z\(\),\-/._]+?)?', preg_quote($parameter));
-        
-        if(!$pattern)
-        {
+
+        if (!$pattern) {
             $pattern = $config->get('image.pattern', '^(.*){parameters}\.(jpg|jpeg|png|gif|JPG|JPEG|PNG|GIF)$');
         }
         $pattern = preg_replace('/\{\s*parameters\s*\}/', $parameter, $pattern);
@@ -436,20 +436,20 @@ class ImageManager extends Manager
     /**
      * Parse the path for the original path of the image and options
      *
-     * @param  string    $path A path to parse
-     * @param  array    $config Configuration options for the parsing
+     * @param  string $path   A path to parse
+     * @param  array  $config Configuration options for the parsing
      * @return array
      */
-    public function parse($path, $config = array())
+    public function parse($path, $config = [])
     {
         //Default config
-        $config = array_merge(array(
+        $config = array_merge([
             'custom_filters_only' => false,
             'url_parameter' => null,
-            'url_parameter_separator' => $this->app['config']['image.url_parameter_separator']
-        ), $config);
+            'url_parameter_separator' => $this->app['config']['image.url_parameter_separator'],
+        ], $config);
 
-        $parsedOptions = array();
+        $parsedOptions = [];
         if (preg_match('#'.$this->pattern($config['url_parameter']).'#i', $path, $matches)) {
             //Get path and options
             $path = $matches[1].'.'.$matches[3];
@@ -459,100 +459,16 @@ class ImageManager extends Manager
             $parsedOptions = $this->parseOptions($pathOptions, $config);
         }
 
-        return array(
+        return [
             'path' => $path,
-            'options' => $parsedOptions
-        );
-    }
-
-    /**
-     * Parse options from url string
-     *
-     * @param  string    $option_path The path contaning all the options
-     * @param  array    $config Configuration options for the parsing
-     * @return array
-     */
-    protected function parseOptions($option_path, $config = array())
-    {
-
-        //Default config
-        $config = array_merge(array(
-            'custom_filters_only' => false,
-            'url_parameter_separator' => $this->app['config']['image.url_parameter_separator']
-        ), $config);
-
-        $options = array();
-
-        // These will look like (depends on the url_parameter_separator): "-colorize(CC0000)-greyscale"
-        $option_path_parts = explode($config['url_parameter_separator'], $option_path);
-
-        // Loop through the params and make the options key value pairs
-        foreach ($option_path_parts as $option) {
-            //Check if the option is a size or is properly formatted
-            if (!$config['custom_filters_only'] && preg_match('#([0-9]+|_)x([0-9]+|_)#i', $option, $matches)) {
-                $options['width'] = $matches[1] === '_' ? null:(int)$matches[1];
-                $options['height'] = $matches[2] === '_' ? null:(int)$matches[2];
-                continue;
-            } elseif (!preg_match('#(\w+)(?:\(([\w,.]+)\))?#i', $option, $matches)) {
-                continue;
-            }
-
-            //Check if the key is valid
-            $key = $matches[1];
-            if (!$this->isValidOption($key)) {
-                throw new ParseException('The option key "'.$key.'" does not exists.');
-            }
-
-            // If the option is a custom filter, check if it's a closure or an array.
-            // If it's an array, merge it with options
-            if (isset($this->filters[$key])) {
-                if (is_object($this->filters[$key]) && is_callable($this->filters[$key])) {
-                    $arguments = isset($matches[2]) ? explode(',', $matches[2]):array();
-                    array_unshift($arguments, $key);
-                    $options['filters'][] = $arguments;
-                } elseif (is_array($this->filters[$key])) {
-                    $options = array_merge($options, $this->filters[$key]);
-                }
-            } elseif (!$config['custom_filters_only']) {
-                if (isset($matches[2])) {
-                    $options[$key] = strpos($matches[2], ',') === true ? explode(',', $matches[2]):$matches[2];
-                } else {
-                    $options[$key] = true;
-                }
-            } else {
-                throw new ParseException('The option key "'.$key.'" does not exists.');
-            }
-        }
-
-        // Merge the options with defaults
-        return $options;
-    }
-
-    /**
-     * Check if an option key is valid by checking if a
-     * $this->filterName() method is present or if a custom filter
-     * is registered.
-     *
-     * @param  string  $key Option key to check
-     * @return boolean
-     */
-    protected function isValidOption($key)
-    {
-        if (in_array($key, array('crop','width','height'))) {
-            return true;
-        }
-
-        $method = 'filter'.ucfirst($key);
-        if (method_exists($this, $method) || isset($this->filters[$key])) {
-            return true;
-        }
-        return false;
+            'options' => $parsedOptions,
+        ];
     }
 
     /**
      * Get real path
      *
-     * @param  string    $path Path to an original image
+     * @param  string $path Path to an original image
      * @return string
      */
     public function getRealPath($path)
@@ -560,7 +476,7 @@ class ImageManager extends Manager
         if (is_file(realpath($path))) {
             return realpath($path);
         }
-        
+
         //Get directories
         $dirs = $this->app['config']['image.src_dirs'];
         if ($this->app['config']['image.write_path']) {
@@ -588,15 +504,144 @@ class ImageManager extends Manager
     }
 
     /**
+     * Get mime type from image format
+     *
+     * @return string
+     * @param  mixed  $format
+     */
+    public function getMimeFromFormat($format)
+    {
+        switch ($format) {
+            case 'gif':
+                return 'image/gif';
+            break;
+            case 'jpg':
+            case 'jpeg':
+                return 'image/jpeg';
+            break;
+            case 'png':
+                return 'image/png';
+            break;
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the default image driver name.
+     *
+     * @return string
+     */
+    public function getDefaultDriver()
+    {
+        return $this->app['config']['image.driver'];
+    }
+
+    /**
+     * Set the default image driver name.
+     *
+     * @param  string $name
+     * @return void
+     */
+    public function setDefaultDriver($name)
+    {
+        $this->app['config']['image.driver'] = $name;
+    }
+
+    /**
+     * Parse options from url string
+     *
+     * @param  string $option_path The path contaning all the options
+     * @param  array  $config      Configuration options for the parsing
+     * @return array
+     */
+    protected function parseOptions($option_path, $config = [])
+    {
+
+        //Default config
+        $config = array_merge([
+            'custom_filters_only' => false,
+            'url_parameter_separator' => $this->app['config']['image.url_parameter_separator'],
+        ], $config);
+
+        $options = [];
+
+        // These will look like (depends on the url_parameter_separator): "-colorize(CC0000)-greyscale"
+        $option_path_parts = explode($config['url_parameter_separator'], $option_path);
+
+        // Loop through the params and make the options key value pairs
+        foreach ($option_path_parts as $option) {
+            //Check if the option is a size or is properly formatted
+            if (!$config['custom_filters_only'] && preg_match('#([0-9]+|_)x([0-9]+|_)#i', $option, $matches)) {
+                $options['width'] = $matches[1] === '_' ? null : (int)$matches[1];
+                $options['height'] = $matches[2] === '_' ? null : (int)$matches[2];
+                continue;
+            } elseif (!preg_match('#(\w+)(?:\(([\w,.]+)\))?#i', $option, $matches)) {
+                continue;
+            }
+
+            //Check if the key is valid
+            $key = $matches[1];
+            if (!$this->isValidOption($key)) {
+                throw new ParseException('The option key "'.$key.'" does not exists.');
+            }
+
+            // If the option is a custom filter, check if it's a closure or an array.
+            // If it's an array, merge it with options
+            if (isset($this->filters[$key])) {
+                if (is_object($this->filters[$key]) && is_callable($this->filters[$key])) {
+                    $arguments = isset($matches[2]) ? explode(',', $matches[2]) : [];
+                    array_unshift($arguments, $key);
+                    $options['filters'][] = $arguments;
+                } elseif (is_array($this->filters[$key])) {
+                    $options = array_merge($options, $this->filters[$key]);
+                }
+            } elseif (!$config['custom_filters_only']) {
+                if (isset($matches[2])) {
+                    $options[$key] = strpos($matches[2], ',') === true ? explode(',', $matches[2]) : $matches[2];
+                } else {
+                    $options[$key] = true;
+                }
+            } else {
+                throw new ParseException('The option key "'.$key.'" does not exists.');
+            }
+        }
+
+        // Merge the options with defaults
+        return $options;
+    }
+
+    /**
+     * Check if an option key is valid by checking if a
+     * $this->filterName() method is present or if a custom filter
+     * is registered.
+     *
+     * @param  string  $key Option key to check
+     * @return boolean
+     */
+    protected function isValidOption($key)
+    {
+        if (in_array($key, ['crop','width','height'])) {
+            return true;
+        }
+
+        $method = 'filter'.ucfirst($key);
+        if (method_exists($this, $method) || isset($this->filters[$key])) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Get all files (including manipulated images)
      *
-     * @param  string    $path Path to an original image
+     * @param  string $path         Path to an original image
+     * @param  mixed  $withOriginal
      * @return array
      */
     protected function getFiles($path, $withOriginal = true)
     {
-
-        $images = array();
+        $images = [];
 
         //Check path
         $path = urldecode($path);
@@ -626,7 +671,7 @@ class ImageManager extends Manager
                 $images[] = $directory.'/'.$file;
             }
         }
-        
+
         // Return the list
         return $images;
     }
@@ -634,8 +679,8 @@ class ImageManager extends Manager
     /**
      * Apply a custom filter or an image
      *
-     * @param  ImageInterface    $image An image instance
-     * @param  string            $name The filter name
+     * @param  ImageInterface       $image An image instance
+     * @param  string               $name  The filter name
      * @return ImageInterface|array
      */
     protected function applyCustomFilter(ImageInterface $image, $name)
@@ -658,8 +703,8 @@ class ImageManager extends Manager
     /**
      * Apply rotate filter
      *
-     * @param  ImageInterface    $image An image instance
-     * @param  float            $degree The rotation degree
+     * @param  ImageInterface $image  An image instance
+     * @param  float          $degree The rotation degree
      * @return void
      */
     protected function filterRotate(ImageInterface $image, $degree)
@@ -670,7 +715,7 @@ class ImageManager extends Manager
     /**
      * Apply grayscale filter
      *
-     * @param  ImageInterface    $image An image instance
+     * @param  ImageInterface $image An image instance
      * @return void
      */
     protected function filterGrayscale(ImageInterface $image)
@@ -682,7 +727,7 @@ class ImageManager extends Manager
     /**
      * Apply negative filter
      *
-     * @param  ImageInterface    $image An image instance
+     * @param  ImageInterface $image An image instance
      * @return void
      */
     protected function filterNegative(ImageInterface $image)
@@ -694,8 +739,8 @@ class ImageManager extends Manager
     /**
      * Apply gamma filter
      *
-     * @param  ImageInterface    $image An image instance
-     * @param  float            $gamma The gamma value
+     * @param  ImageInterface $image An image instance
+     * @param  float          $gamma The gamma value
      * @return void
      */
     protected function filterGamma(ImageInterface $image, $gamma)
@@ -707,8 +752,8 @@ class ImageManager extends Manager
     /**
      * Apply blur filter
      *
-     * @param  ImageInterface    $image An image instance
-     * @param  int            $blur The amount of blur
+     * @param  ImageInterface $image An image instance
+     * @param  int            $blur  The amount of blur
      * @return void
      */
     protected function filterBlur(ImageInterface $image, $blur)
@@ -720,8 +765,8 @@ class ImageManager extends Manager
     /**
      * Apply colorize filter
      *
-     * @param  ImageInterface    $image An image instance
-     * @param  string            $color The hex value of the color
+     * @param  ImageInterface $image An image instance
+     * @param  string         $color The hex value of the color
      * @return void
      */
     protected function filterColorize(ImageInterface $image, $color)
@@ -729,13 +774,10 @@ class ImageManager extends Manager
         $palettes = ['RGB','CMYK'];
         $parts = explode(',', $color);
         $color = $parts[0];
-        if(isset($parts[1]) && in_array(strtoupper($parts[1]), $palettes))
-        {
+        if (isset($parts[1]) && in_array(strtoupper($parts[1]), $palettes)) {
             $className = '\\Imagine\\Image\\Palette\\'.strtoupper($parts[1]);
             $palette = new $className();
-        }
-        else
-        {
+        } else {
             $palette = $image->palette();
         }
         $color = $palette->color($color);
@@ -746,7 +788,7 @@ class ImageManager extends Manager
     /**
      * Apply  interlace filter
      *
-     * @param  ImageInterface    $image An image instance
+     * @param  ImageInterface $image An image instance
      * @return void
      */
     protected function filterInterlace(ImageInterface $image)
@@ -756,38 +798,15 @@ class ImageManager extends Manager
     }
 
     /**
-     * Get mime type from image format
-     *
-     * @return string
-     */
-    public function getMimeFromFormat($format)
-    {
-
-        switch ($format) {
-            case 'gif':
-                return 'image/gif';
-            break;
-            case 'jpg':
-            case 'jpeg':
-                return 'image/jpeg';
-            break;
-            case 'png':
-                return 'image/png';
-            break;
-        }
-
-        return null;
-    }
-    
-    /**
      * Return crop positions from the crop parameter
      *
      * @return array
+     * @param  mixed $crop
      */
     protected function getCropPositions($crop)
     {
-        $crop = $crop === true ? 'center':$crop;
-        
+        $crop = $crop === true ? 'center' : $crop;
+
         $cropPositions = explode('_', $crop);
         if (sizeof($cropPositions) === 1) {
             if ($cropPositions[0] === 'top' || $cropPositions[0] === 'bottom' || $cropPositions[0] === 'center') {
@@ -796,7 +815,7 @@ class ImageManager extends Manager
                 array_unshift($cropPositions, 'center');
             }
         }
-        
+
         return $cropPositions;
     }
 
@@ -828,26 +847,5 @@ class ImageManager extends Manager
     protected function createGmagickDriver()
     {
         return new \Imagine\Gmagick\Imagine();
-    }
-
-    /**
-     * Get the default image driver name.
-     *
-     * @return string
-     */
-    public function getDefaultDriver()
-    {
-        return $this->app['config']['image.driver'];
-    }
-
-    /**
-     * Set the default image driver name.
-     *
-     * @param  string  $name
-     * @return void
-     */
-    public function setDefaultDriver($name)
-    {
-        $this->app['config']['image.driver'] = $name;
     }
 }

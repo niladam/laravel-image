@@ -1,8 +1,11 @@
-<?php namespace Folklore\Image;
+<?php
 
-use Folklore\Image\Exception\FileMissingException;
-use Folklore\Image\Exception\Exception;
+namespace Folklore\Image;
+
 use Folklore\Image\Events\ImageSaved;
+use Folklore\Image\Exception\Exception;
+use Folklore\Image\Exception\FileMissingException;
+use Illuminate\Support\Arr;
 
 class ImageServe
 {
@@ -19,16 +22,16 @@ class ImageServe
             'write_image' => false,
             'write_path' => null,
             'quality' => 80,
-            'options' => []
+            'options' => [],
         ], $config);
     }
 
     public function response($path)
     {
         // Parse the current path
-        $parsedPath = $this->image->parse($path, array(
-            'custom_filters_only' => $this->config['custom_filters_only']
-        ));
+        $parsedPath = $this->image->parse($path, [
+            'custom_filters_only' => $this->config['custom_filters_only'],
+        ]);
         $writePath = isset($this->config['write_path']) ? trim($this->config['write_path'], '/') : null;
         $parsedOptions = $parsedPath['options'];
         $imagePath = $parsedPath['path'];
@@ -48,7 +51,7 @@ class ImageServe
             if (strpos($realPath, public_path()) === 0) {
                 $imagePath = substr($realPath, strlen(public_path()));
             }
-            $destinationFolder = public_path(trim($writePath, '/') . '/' . ltrim(dirname($imagePath), '/'));
+            $destinationFolder = public_path(trim($writePath, '/').'/'.ltrim(dirname($imagePath), '/'));
 
             if (isset($writePath)) {
                 \File::makeDirectory($destinationFolder, 0770, true, true);
@@ -59,7 +62,6 @@ class ImageServe
                 throw new Exception('Destination is not writeable');
             }
         }
-
 
         // Merge all options with the following priority:
         // Options passed as an argument to the serve method
@@ -74,8 +76,8 @@ class ImageServe
         $format = $this->image->format($realPath);
 
         //Get the image content
-        $saveOptions = array();
-        $quality = array_get($options, 'quality', $this->config['quality']);
+        $saveOptions = [];
+        $quality = Arr::get($options, 'quality', $this->config['quality']);
         if ($format === 'jpeg') {
             $saveOptions['jpeg_quality'] = $quality;
         } elseif ($format === 'png') {
@@ -84,7 +86,7 @@ class ImageServe
 
         //Write the image
         if ($this->config['write_image']) {
-            $destinationPath = rtrim($destinationFolder, '/') . '/' . basename($path);
+            $destinationPath = rtrim($destinationFolder, '/').'/'.basename($path);
             $image->save($destinationPath, $saveOptions);
 
             // Trigger event
